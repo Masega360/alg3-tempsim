@@ -178,12 +178,17 @@ def gauss_pivoteo_numba(A, b):
     return x
 
 
-# ---------- Experimentos ----------
+
 resoluciones = [10, 20, 30, 50, 70]
 dt = 0.1
 alpha = 0.01
 pasos = 10
 metodos = ['gauss_pivoteo', 'optimizado', 'directo']
+
+# Diccionario para guardar tiempos por método
+# Diccionario para guardar tiempos y soluciones finales
+tiempos_por_metodo = {metodo: [] for metodo in metodos}
+soluciones_finales = {metodo: [] for metodo in metodos}
 
 for nx in resoluciones:
     ny = nx
@@ -191,6 +196,48 @@ for nx in resoluciones:
     for metodo in metodos:
         try:
             T_final, tiempo = simular(nx, ny, dt, alpha, pasos, metodo)
+            tiempos_por_metodo[metodo].append(tiempo)
+            soluciones_finales[metodo].append(T_final)
             print(f"  Método: {metodo:<15} - Tiempo promedio: {tiempo:.5f} s")
         except Exception as e:
+            tiempos_por_metodo[metodo].append(np.nan)
+            soluciones_finales[metodo].append(None)
             print(f"  Método: {metodo:<15} - Error: {str(e)}")
+
+# ----------- Gráficos de tiempo separados -----------
+for metodo in metodos:
+    plt.figure()
+    plt.plot(resoluciones, tiempos_por_metodo[metodo], marker='o')
+    plt.title(f"Tiempo de simulación promedio - Método: {metodo}")
+    plt.xlabel("Resolución (nx = ny)")
+    plt.ylabel("Tiempo promedio por paso (s)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+# ----------- Cálculo de errores relativos respecto al método 'directo' -----------
+errores_relativos = {'gauss_pivoteo': [], 'optimizado': []}
+
+for i, res in enumerate(resoluciones):
+    ref = soluciones_finales['directo'][i]
+    ref_vec = ref.flatten() if ref is not None else None
+    for metodo in ['gauss_pivoteo', 'optimizado']:
+        T_metodo = soluciones_finales[metodo][i]
+        if ref_vec is not None and T_metodo is not None:
+            diff = T_metodo.flatten() - ref_vec
+            error_rel = np.linalg.norm(diff) / np.linalg.norm(ref_vec)
+        else:
+            error_rel = np.nan
+        errores_relativos[metodo].append(error_rel)
+
+# ----------- Gráfico de errores relativos -----------
+plt.figure(figsize=(10, 5))
+for metodo in errores_relativos:
+    plt.plot(resoluciones, errores_relativos[metodo], marker='x', label=f"{metodo}")
+plt.title("Error relativo respecto al método 'directo'")
+plt.xlabel("Resolución (nx = ny)")
+plt.ylabel("Error relativo")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
