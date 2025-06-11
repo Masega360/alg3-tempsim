@@ -36,25 +36,25 @@ def inicializar_T(nx, ny):
 import numpy as np
 
 def optimizado(A, d):
-    A = A.toarray()  # Convertir a matriz densa
+    A = A.toarray()
     n = len(d)
 
-    # Extraemos las diagonales a_i (subdiagonal), b_i (principal), c_i (superdiagonal)
-    a = np.diag(A, k=-1)  # subdiagonal (a_2 ... a_n), a_1 = 0 implícito
+    #
+    a = np.diag(A, k=-1)
     b = np.diag(A)        # diagonal principal (b_1 ... b_n)
-    c = np.diag(A, k=1)   # superdiagonal (c_1 ... c_{n-1}), c_n = 0 implícito
+    c = np.diag(A, k=1)
 
-    # Inicializamos los vectores modificados (n elementos)
+
     b_prime = np.zeros(n)
     d_prime = np.zeros(n)
 
-    # Condiciones iniciales (i=1)
+
     b_prime[0] = b[0]
     d_prime[0] = d[0]
 
     # Eliminación hacia adelante: i = 2,...,n
     for i in range(1, n):
-        w = a[i-1] / b_prime[i-1]       # coeficiente multiplicador
+        w = a[i-1] / b_prime[i-1]       # m
         b_prime[i] = b[i] - w * c[i-1]
         d_prime[i] = d[i] - w * d_prime[i-1]
 
@@ -70,8 +70,9 @@ def optimizado(A, d):
 
 
 # Método de Gauss con pivoteo
+import numpy as np
+
 def gauss_pivoteo(A, b):
-    # Convertir a matriz densa para simplicidad (solo para problemas pequeños)
     A = A.toarray().copy()
     b = b.copy()
     n = len(b)
@@ -82,25 +83,31 @@ def gauss_pivoteo(A, b):
         if abs(A[max_row, k]) < 1e-15:
             raise ValueError("Matriz singular o casi singular")
 
-        # Intercambiar filas si es necesario
         if max_row != k:
             A[[k, max_row], :] = A[[max_row, k], :]
             b[[k, max_row]] = b[[max_row, k]]
 
-        # Eliminación hacia adelante
+        pivot = A[k, k]
+        A[k, :] = A[k, :] / pivot
+        b[k] = b[k] / pivot
+
         for i in range(k + 1, n):
-            factor = A[i, k] / A[k, k]
-            A[i, k:] -= factor * A[k, k:]
+            factor = A[i, k]
+            A[i, :] -= factor * A[k, :]
             b[i] -= factor * b[k]
+
+    if abs(A[n-1, n-1]) < 1e-15:
+        raise ValueError("Matriz singular o casi singular")
+    b[n-1] = b[n-1] / A[n-1, n-1]
+    A[n-1, :] = A[n-1, :] / A[n-1, n-1]
 
     # Sustitución hacia atrás
     x = np.zeros(n)
     for i in reversed(range(n)):
-        if abs(A[i, i]) < 1e-15:
-            raise ValueError("Matriz singular o casi singular en sustitución hacia atrás")
-        x[i] = (b[i] - np.dot(A[i, i + 1:], x[i + 1:])) / A[i, i]
+        x[i] = b[i] - np.dot(A[i, i + 1:], x[i + 1:])
 
     return x
+
 
 
 # Un paso de simulación
@@ -143,40 +150,6 @@ def simular(nx, ny, dt, alpha, pasos, metodo_solucion):
     tiempo_promedio = np.mean(tiempos)
     return T, tiempo_promedio
 
-#----------------------------------------------
-
-import numba
-import numpy as np
-
-@numba.njit
-def gauss_pivoteo_numba(A, b):
-    n = len(b)
-    for k in range(n - 1):
-        max_row = k
-        max_val = abs(A[k, k])
-        for r in range(k+1, n):
-            if abs(A[r, k]) > max_val:
-                max_val = abs(A[r, k])
-                max_row = r
-        if max_row != k:
-            for c in range(k, n):
-                A[k, c], A[max_row, c] = A[max_row, c], A[k, c]
-            b[k], b[max_row] = b[max_row], b[k]
-
-        for i in range(k + 1, n):
-            factor = A[i, k] / A[k, k]
-            for j in range(k, n):
-                A[i, j] -= factor * A[k, j]
-            b[i] -= factor * b[k]
-
-    x = np.zeros(n)
-    for i in range(n-1, -1, -1):
-        suma = 0.0
-        for j in range(i+1, n):
-            suma += A[i, j] * x[j]
-        x[i] = (b[i] - suma) / A[i, i]
-    return x
-
 
 
 resoluciones = [10, 20, 30, 50, 70]
@@ -185,8 +158,6 @@ alpha = 0.01
 pasos = 10
 metodos = ['gauss_pivoteo', 'optimizado', 'directo']
 
-# Diccionario para guardar tiempos por método
-# Diccionario para guardar tiempos y soluciones finales
 tiempos_por_metodo = {metodo: [] for metodo in metodos}
 soluciones_finales = {metodo: [] for metodo in metodos}
 
@@ -241,3 +212,14 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+# ----------- Gráficos individuales de errores relativos (excepto 'directo') -----------
+for metodo in errores_relativos:
+    plt.figure()
+    plt.plot(resoluciones, errores_relativos[metodo], marker='o', color='tab:red')
+    plt.title(f"Error relativo del método '{metodo}' respecto al método 'directo'")
+    plt.xlabel("Resolución (nx = ny)")
+    plt.ylabel("Error relativo")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
